@@ -1,17 +1,7 @@
 package com.jsg.officials;
 
 import com.googlecode.objectify.ObjectifyService;
-import edu.stanford.nlp.ling.CoreAnnotations;
-import edu.stanford.nlp.ling.CoreLabel;
-import edu.stanford.nlp.pipeline.Annotation;
-import edu.stanford.nlp.pipeline.StanfordCoreNLP;
-import edu.stanford.nlp.util.CoreMap;
 import org.apache.commons.codec.binary.Base64;
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.StopAnalyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.TermAttribute;
-import org.apache.lucene.util.Version;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -22,11 +12,10 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.StringReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.List;
-import java.util.Properties;
+import java.util.regex.Pattern;
+
 /**
  * created 4/4/16
  * Query Servlet Handling
@@ -182,53 +171,24 @@ public class QueryServlet extends HttpServlet {
             formattedAnswer.put("conf", rawAnswer.optString("value"));
         }
 
-        // sentence detector
-        Annotation document = new Annotation();
-        try {
-            Properties props = new Properties();
-            props.setProperty("annotators", "tokenize, ssplit, pos, lemma");
-            StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
-            document = new Annotation(rawText);
-            pipeline.annotate(document);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-
         String focus = "None";
+        String[] sentences = rawText.split(Pattern.quote(". "));
         int sentScore = 0, maxScore = -1;
-        List<CoreMap> sentences = document.get(CoreAnnotations.SentencesAnnotation.class);
-        for (CoreMap sentence : sentences) {
+        for (String sentence : sentences) {
             // traversing the words in the current sentence
             // a CoreLabel is a CoreMap with additional token-specific methods
             sentScore = 0;
 
-            for (CoreLabel token : sentence.get(CoreAnnotations.TokensAnnotation.class)) {
+            for (String token : sentence.split("\\s+")) {
 
-                // this is the text of the token
-                String word = token.get(CoreAnnotations.TextAnnotation.class);
-
-                // this is the NER label of the token
-                String lemma = token.get(CoreAnnotations.LemmaAnnotation.class);
-            }
-
-            Analyzer analyzer = new StopAnalyzer(Version.LUCENE_36);
-            TokenStream tokenStream = analyzer.tokenStream(
-                    "contents", new StringReader(sentence.toString()));
-            TermAttribute term = tokenStream.addAttribute(TermAttribute.class);
-            try {
-                while (tokenStream.incrementToken()) {
-                    if (question.contains(term.term()) & term.term().length() > 2) {
-                        sentScore++;
-                    }
+                if (question.contains(token) & token.length() > 3) {
+                    sentScore++;
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
 
-            if (sentScore > maxScore) {
-                focus = sentence.toString();
-                maxScore = sentScore;
+                if (sentScore > maxScore) {
+                    focus = sentence;
+                    maxScore = sentScore;
+                }
             }
         }
         formattedAnswer.put("focus", focus);
